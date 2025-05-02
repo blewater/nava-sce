@@ -35,6 +35,8 @@ contract MultisigWallet is ReentrancyGuard {
      * Events
      */
     event OwnerAdded(address indexed owner);
+    event Deposit(address indexed sender, uint256 amount);
+
 
     /*
      * Storage
@@ -98,5 +100,9 @@ contract MultisigWallet is ReentrancyGuard {
 
     function getOwners() external view returns (address[] memory) {
         return _owners;
+    }
+
+    receive() external payable {
+        emit Deposit(msg.sender, msg.value);
     }
 }

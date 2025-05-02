@@ -85,5 +85,21 @@ contract MultisigWalletTest is Test {
             abi.encodeWithSelector(MultisigWallet.OwnerAlreadyExists.selector, owner1)
         );
         new MultisigWallet(duplicateOwners, 1);
+    }
+
+    function test_receive_AcceptsEthAndEmitsEvent() public {
+        uint256 depositAmount = 1 ether;
+        uint256 initialBalance = address(wallet).balance;
+
+        // Expect Deposit event
+        vm.expectEmit(true, true, true, true);
+        emit MultisigWallet.Deposit(address(this), depositAmount); // address(this) is the default msg.sender in tests
+
+        // Send ETH to the contract using low-level call
+        (bool success, ) = address(wallet).call{value: depositAmount}("");
+        assertTrue(success, "ETH transfer failed");
+
+        // Check final balance
+        assertEq(address(wallet).balance, initialBalance + depositAmount, "Balance mismatch after deposit");
     }    
 }
