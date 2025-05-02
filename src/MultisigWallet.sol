@@ -29,6 +29,7 @@ contract MultisigWallet is ReentrancyGuard {
     error InvalidRequiredApprovals(uint256 requiredApprovals, uint256 ownerCount);
     error NoOwners();
     error ZeroAddressOwner();
+    error OwnerAlreadyExists(address owner);
 
     /*
      * Events
@@ -38,34 +39,36 @@ contract MultisigWallet is ReentrancyGuard {
     /*
      * Storage
      */
+    
     // track owners: address => isOwner
-    mapping(address => bool) private _isOwner;
+    mapping(address => bool) public isOwner;
     // track approvals: transaction => owner => approval
     mapping(uint256 => mapping(address => bool)) private _trxApprovals;
     uint256 private _ownerCount; // n
-    uint256 private _requiredApprovals; // of m
+    uint256 public requiredApprovals; // of m
+    address[] private _owners;
 
     /*
      * Modifiers
      */
     modifier onlyOwner() {
-        if (!_isOwner[msg.sender]) {
+        if (!isOwner[msg.sender]) {
             revert NotOwner(msg.sender);
         }
         _;
     }
 
-    constructor(address[] memory owners, uint256 requiredApprovals) {
+    constructor(address[] memory owners, uint256 newRequiredApprovals) {
         uint256 ownerCount = owners.length;
-
-        // Validate required approvals relative to owner count
-        if (requiredApprovals == 0 || requiredApprovals > ownerCount) {
-            revert InvalidRequiredApprovals(requiredApprovals, ownerCount);
-        }
 
         // Validate owner array is not empty
         if (ownerCount == 0) {
             revert NoOwners();
+        }
+        
+        // Validate required approvals relative to owner count
+        if (newRequiredApprovals == 0 || newRequiredApprovals > ownerCount) {
+            revert InvalidRequiredApprovals(newRequiredApprovals, ownerCount);
         }
 
         // Initialize owners and check for duplicates/zero addresses
@@ -77,16 +80,23 @@ contract MultisigWallet is ReentrancyGuard {
             }
             
             // Add unique owners
-            if (!_isOwner[owner]) {
-                _isOwner[owner] = true;
+            if (!isOwner[owner]) {
+                _owners.push(owner);
+                isOwner[owner] = true;
 
                 emit OwnerAdded(owner);
                 
                 // Unique owner count
                 _ownerCount++;
+            } else {
+                revert OwnerAlreadyExists(owner);
             }
         }
 
-        _requiredApprovals = requiredApprovals;
+        requiredApprovals = newRequiredApprovals;
+    }
+
+    function getOwners() external view returns (address[] memory) {
+        return _owners;
     }
 }
