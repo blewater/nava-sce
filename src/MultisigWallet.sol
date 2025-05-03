@@ -20,7 +20,6 @@ import {ReentrancyGuard} from "@openzeppelin-contracts-5.3.0/utils/ReentrancyGua
  * `m` - number of required approvals
  */
 contract MultisigWallet is ReentrancyGuard {
-
     /*
      * Custom errors
      */
@@ -60,7 +59,7 @@ contract MultisigWallet is ReentrancyGuard {
     /*
      * Storage
      */
-    
+
     // track owners: address => isOwner
     mapping(address => bool) public isOwner;
     // track approvals: transaction => owner => approval
@@ -94,7 +93,7 @@ contract MultisigWallet is ReentrancyGuard {
         if (ownerCount == 0) {
             revert NoOwners();
         }
-        
+
         // Validate required approvals relative to owner count
         if (newRequiredApprovals == 0 || newRequiredApprovals > ownerCount) {
             revert InvalidRequiredApprovals(newRequiredApprovals, ownerCount);
@@ -103,18 +102,18 @@ contract MultisigWallet is ReentrancyGuard {
         // Initialize owners and check for duplicates/zero addresses
         for (uint256 i = 0; i < ownerCount; i++) {
             address owner = owners[i];
-            
+
             if (owner == address(0)) {
                 revert ZeroAddressOwner();
             }
-            
+
             // Add unique owners
             if (!isOwner[owner]) {
                 _owners.push(owner);
                 isOwner[owner] = true;
 
                 emit OwnerAdded(owner);
-                
+
                 // Unique owner count
                 _ownerCount++;
             } else {
@@ -140,23 +139,14 @@ contract MultisigWallet is ReentrancyGuard {
      * @param value The amount of ETH to send (in wei).
      * @return nonce The ID of the newly proposed transaction.
      */
-    function proposeTransaction(address to, uint256 value)
-        external
-        onlyOwner
-        returns (uint256 nonce)
-    {
+    function proposeTransaction(address to, uint256 value) external onlyOwner returns (uint256 nonce) {
         // Validate recipient address
         if (to == address(0)) {
             revert ZeroAddressRecipient();
         }
 
         nonce = transactionNonce;
-        transactions[nonce] = Transaction({
-            to: to,
-            value: value,
-            approvalCount: 0,
-            executed: false
-        });
+        transactions[nonce] = Transaction({to: to, value: value, approvalCount: 0, executed: false});
         transactionNonce++;
 
         emit ProposedTransaction(nonce, msg.sender, to, value);
@@ -206,10 +196,10 @@ contract MultisigWallet is ReentrancyGuard {
 
     /**
      * Executes a transaction if it has enough approvals.
-     * Only callable by an owner. 
-     * Transaction must exist, 
+     * Only callable by an owner.
+     * Transaction must exist,
      * Not be already executed,
-     * Have sufficient approvals. 
+     * Have sufficient approvals.
      * Contract must have enough ETH balance.
      * @param nonce The ID of the transaction to execute.
      */
@@ -232,18 +222,14 @@ contract MultisigWallet is ReentrancyGuard {
 
         // Check if the transaction has enough approvals
         if (transaction.approvalCount < requiredApprovals) {
-            revert NotEnoughApprovals(
-                nonce,
-                transaction.approvalCount,
-                requiredApprovals
-            );
+            revert NotEnoughApprovals(nonce, transaction.approvalCount, requiredApprovals);
         }
 
         // Mark as executed *before* sending ETH (Checks-Effects-Interactions pattern)
         transaction.executed = true;
 
         // Execute the transaction (send ETH)
-        (bool success, ) = transaction.to.call{value: transaction.value}("");
+        (bool success,) = transaction.to.call{value: transaction.value}("");
         if (!success) {
             // Revert execution status if transfer fails
             transaction.executed = false;

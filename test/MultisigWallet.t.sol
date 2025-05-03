@@ -5,7 +5,6 @@ import {Test, console2} from "forge-std/Test.sol";
 import {MultisigWallet} from "../src/MultisigWallet.sol";
 
 contract MultisigWalletTest is Test {
-
     MultisigWallet wallet;
     uint256 TwoOfThree = 2;
 
@@ -40,28 +39,18 @@ contract MultisigWalletTest is Test {
     }
 
     function test_constructor_RevertsIfRequiredApprovalsIsZero() public {
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                MultisigWallet.InvalidRequiredApprovals.selector,
-                0,
-                owners.length
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(MultisigWallet.InvalidRequiredApprovals.selector, 0, owners.length));
         new MultisigWallet(owners, 0);
     }
 
     function test_constructor_RevertsIfRequiredApprovalsExceedsOwners() public {
         vm.expectRevert(
-             abi.encodeWithSelector(
-                MultisigWallet.InvalidRequiredApprovals.selector,
-                owners.length + 1,
-                owners.length
-            )
+            abi.encodeWithSelector(MultisigWallet.InvalidRequiredApprovals.selector, owners.length + 1, owners.length)
         );
         new MultisigWallet(owners, owners.length + 1);
     }
 
-     function test_constructor_RevertsIfOwnersIsEmpty() public {
+    function test_constructor_RevertsIfOwnersIsEmpty() public {
         address[] memory emptyOwners;
         vm.expectRevert(MultisigWallet.NoOwners.selector);
         new MultisigWallet(emptyOwners, 1);
@@ -75,13 +64,11 @@ contract MultisigWalletTest is Test {
         new MultisigWallet(ownersWithZero, 1);
     }
 
-     function test_constructor_RevertsIfDuplicateOwner() public {
+    function test_constructor_RevertsIfDuplicateOwner() public {
         address[] memory duplicateOwners = new address[](2);
         duplicateOwners[0] = owner1;
         duplicateOwners[1] = owner1; // Duplicate
-        vm.expectRevert(
-            abi.encodeWithSelector(MultisigWallet.OwnerAlreadyExists.selector, owner1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(MultisigWallet.OwnerAlreadyExists.selector, owner1));
         new MultisigWallet(duplicateOwners, 1);
     }
 
@@ -94,13 +81,12 @@ contract MultisigWalletTest is Test {
         emit MultisigWallet.Deposit(address(this), depositAmount); // address(this) is the default msg.sender in tests
 
         // Send ETH to the contract using low-level call
-        (bool success, ) = address(wallet).call{value: depositAmount}("");
+        (bool success,) = address(wallet).call{value: depositAmount}("");
         assertTrue(success, "ETH transfer failed");
 
         // Check final balance
         assertEq(address(wallet).balance, initialBalance + depositAmount, "Balance mismatch after deposit");
-    }    
-
+    }
 
     // =============================================================
     // Transaction Proposal Tests
@@ -108,7 +94,6 @@ contract MultisigWalletTest is Test {
     function test_proposeTransaction_Success() public {
         uint256 valueToSend = 1 ether;
         uint256 expectedNonce = 0;
-
 
         // Propose as owner1
         // Expect TransactionProposed event
@@ -165,13 +150,13 @@ contract MultisigWalletTest is Test {
         wallet.approveTransaction(nonce);
 
         // Verify approval count and status
-        (, , uint256 approvalCount, ) = wallet.transactions(nonce); // Get the 3rd element
+        (,, uint256 approvalCount,) = wallet.transactions(nonce); // Get the 3rd element
         assertEq(approvalCount, 1, "Approval count should be 1 after one approval");
         // Use the new hasApproved getter
         assertTrue(wallet.hasApproved(nonce, owner2), "Owner2 approval missing");
     }
 
-     function test_approveTransaction_RevertsIfSenderIsNotOwner() public {
+    function test_approveTransaction_RevertsIfSenderIsNotOwner() public {
         uint256 valueToSend = 1 ether;
         vm.prank(owner1);
         uint256 nonce = wallet.proposeTransaction(recipient, valueToSend);
@@ -186,17 +171,15 @@ contract MultisigWalletTest is Test {
     function test_approveTransaction_RevertsIfTransactionDoesNotExist() public {
         uint256 nonExistentnonce = 99;
         vm.prank(owner1);
-        vm.expectRevert(
-            abi.encodeWithSelector(MultisigWallet.InvalidTransactionNonce.selector, nonExistentnonce)
-        );
+        vm.expectRevert(abi.encodeWithSelector(MultisigWallet.InvalidTransactionNonce.selector, nonExistentnonce));
         wallet.approveTransaction(nonExistentnonce);
     }
 
-     function test_approveTransaction_RevertsIfAlreadyApproved() public {
+    function test_approveTransaction_RevertsIfAlreadyApproved() public {
         uint256 valueToSend = 1 ether;
         vm.prank(owner1);
         uint256 nonce = wallet.proposeTransaction(recipient, valueToSend);
-        
+
         // owner1 approves the transaction first
         vm.startPrank(owner1);
         wallet.approveTransaction(nonce);
@@ -219,15 +202,13 @@ contract MultisigWalletTest is Test {
         // 2. Approve (owner2) - Reaches threshold
         vm.prank(owner2);
         wallet.approveTransaction(nonce);
-        
+
         // 3. Execute (owner1)
         vm.prank(owner1);
         wallet.executeTransaction(nonce);
 
         // 4. Try to approve again (owner3) after execution
-        vm.expectRevert(
-            abi.encodeWithSelector(MultisigWallet.TransactionAlreadyExecuted.selector, nonce)
-        );
+        vm.expectRevert(abi.encodeWithSelector(MultisigWallet.TransactionAlreadyExecuted.selector, nonce));
         vm.prank(owner3);
         wallet.approveTransaction(nonce);
     }
@@ -235,7 +216,7 @@ contract MultisigWalletTest is Test {
     // =============================================================
     // Transaction Execution Tests
     // =============================================================
-     function test_executeTransaction_Success() public {
+    function test_executeTransaction_Success() public {
         uint256 valueToSend = 1 ether;
         uint256 initialContractBalance = address(wallet).balance;
         uint256 initialRecipientBalance = recipient.balance;
@@ -259,7 +240,7 @@ contract MultisigWalletTest is Test {
         wallet.executeTransaction(nonce);
 
         // Verify transaction status
-        (, , , bool executed) = wallet.transactions(nonce); // Use the correct getter 'transactions' and unpack the 4th element
+        (,,, bool executed) = wallet.transactions(nonce); // Use the correct getter 'transactions' and unpack the 4th element
         assertTrue(executed, "Transaction should be marked as executed");
 
         // Verify balances
@@ -274,7 +255,7 @@ contract MultisigWalletTest is Test {
         uint256 nonce = wallet.proposeTransaction(recipient, valueToSend);
         wallet.approveTransaction(nonce);
         vm.stopPrank();
-        
+
         // 2. Approve (owner2)
         vm.prank(owner2);
         wallet.approveTransaction(nonce);
@@ -286,11 +267,9 @@ contract MultisigWalletTest is Test {
     }
 
     function test_executeTransaction_RevertsIfTransactionDoesNotExist() public {
-         uint256 nonExistentnonce = 99;
-         vm.prank(owner1);
-         vm.expectRevert(
-            abi.encodeWithSelector(MultisigWallet.InvalidTransactionNonce.selector, nonExistentnonce)
-        );
+        uint256 nonExistentnonce = 99;
+        vm.prank(owner1);
+        vm.expectRevert(abi.encodeWithSelector(MultisigWallet.InvalidTransactionNonce.selector, nonExistentnonce));
         wallet.executeTransaction(nonExistentnonce);
     }
 
@@ -305,7 +284,7 @@ contract MultisigWalletTest is Test {
         // 2. Try to execute (owner2)
         vm.prank(owner2);
         vm.expectRevert(
-             abi.encodeWithSelector(
+            abi.encodeWithSelector(
                 MultisigWallet.NotEnoughApprovals.selector,
                 nonce,
                 1, // current approvals
@@ -326,16 +305,14 @@ contract MultisigWalletTest is Test {
         // 2. Approve (owner2)
         vm.prank(owner2);
         wallet.approveTransaction(nonce);
-        
+
         // 3. Execute (owner1)
         vm.prank(owner1);
         wallet.executeTransaction(nonce);
 
         // 4. Try to execute again (owner2)
         vm.prank(owner2);
-        vm.expectRevert(
-            abi.encodeWithSelector(MultisigWallet.TransactionAlreadyExecuted.selector, nonce)
-        );
+        vm.expectRevert(abi.encodeWithSelector(MultisigWallet.TransactionAlreadyExecuted.selector, nonce));
         wallet.executeTransaction(nonce);
     }
 
@@ -352,7 +329,7 @@ contract MultisigWalletTest is Test {
         uint256 nonce = wallet.proposeTransaction(address(recipientReject), valueToSend);
         wallet.approveTransaction(nonce);
         vm.stopPrank();
-        
+
         // 2. Approve (owner2)
         vm.prank(owner2);
         wallet.approveTransaction(nonce);
@@ -363,15 +340,15 @@ contract MultisigWalletTest is Test {
         wallet.executeTransaction(nonce);
 
         // Verify transaction is NOT marked as executed after failed transfer
-         (, , , bool executed) = wallet.transactions(nonce); // Use correct getter and unpack 4th element
-         assertFalse(executed, "Transaction should not be marked executed after failed transfer");
+        (,,, bool executed) = wallet.transactions(nonce); // Use correct getter and unpack 4th element
+        assertFalse(executed, "Transaction should not be marked executed after failed transfer");
     }
 
-     function test_executeTransaction_RevertsIfInsufficientContractBalance() public {
+    function test_executeTransaction_RevertsIfInsufficientContractBalance() public {
         // get the wallet balance
         uint256 walletBalance = address(wallet).balance;
 
-         // More than the contract holds
+        // More than the contract holds
         uint256 valueToSend = walletBalance + 1 ether;
         uint256 initialContractBalance = address(wallet).balance;
 
@@ -390,11 +367,13 @@ contract MultisigWalletTest is Test {
         vm.expectRevert(MultisigWallet.TransferFailed.selector);
         wallet.executeTransaction(nonce);
 
-         // Verify transaction is NOT marked as executed
-         (, , , bool executed) = wallet.transactions(nonce); // Use correct getter and unpack 4th element
-         assertFalse(executed, "Transaction should not be marked executed after failed transfer");
-         // Verify balance didn't change
-         assertEq(address(wallet).balance, initialContractBalance, "Contract balance should not change on failed transfer");
+        // Verify transaction is NOT marked as executed
+        (,,, bool executed) = wallet.transactions(nonce); // Use correct getter and unpack 4th element
+        assertFalse(executed, "Transaction should not be marked executed after failed transfer");
+        // Verify balance didn't change
+        assertEq(
+            address(wallet).balance, initialContractBalance, "Contract balance should not change on failed transfer"
+        );
     }
 }
 
