@@ -210,7 +210,7 @@ contract MultisigWalletTest is Test {
 
     function test_approveTransaction_RevertsIfTransactionAlreadyExecuted() public {
         uint256 valueToSend = 1 ether;
-        // 1. Propose (owner1 auto-approves)
+        // 1. Propose and approve by owner1
         vm.startPrank(owner1);
         uint256 nonce = wallet.proposeTransaction(recipient, valueToSend);
         wallet.approveTransaction(nonce);
@@ -230,5 +230,177 @@ contract MultisigWalletTest is Test {
         );
         vm.prank(owner3);
         wallet.approveTransaction(nonce);
+    }
+
+    // =============================================================
+    // Transaction Execution Tests
+    // =============================================================
+     function test_executeTransaction_Success() public {
+        uint256 valueToSend = 1 ether;
+        uint256 initialContractBalance = address(wallet).balance;
+        uint256 initialRecipientBalance = recipient.balance;
+
+        // 1. Propose and approve by owner1
+        vm.startPrank(owner1);
+        uint256 nonce = wallet.proposeTransaction(recipient, valueToSend);
+        wallet.approveTransaction(nonce);
+        vm.stopPrank();
+
+        // 2. Approve by owner2
+        vm.prank(owner2);
+        wallet.approveTransaction(nonce);
+
+        // 3. Execute (owner3)
+        // Expect TransactionExecuted event
+        vm.expectEmit(true, true, false, true); // nonce, executor
+        emit MultisigWallet.TransactionExecuted(nonce, owner3);
+
+        vm.prank(owner3);
+        wallet.executeTransaction(nonce);
+
+        // Verify transaction status
+        (, , , bool executed) = wallet.transactions(nonce); // Use the correct getter 'transactions' and unpack the 4th element
+        assertTrue(executed, "Transaction should be marked as executed");
+
+        // Verify balances
+        assertEq(address(wallet).balance, initialContractBalance - valueToSend, "Contract balance incorrect");
+        assertEq(recipient.balance, initialRecipientBalance + valueToSend, "Recipient balance incorrect");
+    }
+
+    function test_executeTransaction_RevertsIfSenderIsNotOwner() public {
+        uint256 valueToSend = 1 ether;
+        // 1. Propose (owner1)
+        vm.startPrank(owner1);
+        uint256 nonce = wallet.proposeTransaction(recipient, valueToSend);
+        wallet.approveTransaction(nonce);
+        vm.stopPrank();
+        
+        // 2. Approve (owner2)
+        vm.prank(owner2);
+        wallet.approveTransaction(nonce);
+
+        // 3. Try to execute as non-owner
+        vm.prank(address(0xbaddad));
+        vm.expectRevert(abi.encodeWithSelector(MultisigWallet.NotOwner.selector, address(0xbaddad)));
+        wallet.executeTransaction(nonce);
+    }
+
+    function test_executeTransaction_RevertsIfTransactionDoesNotExist() public {
+         uint256 nonExistentnonce = 99;
+         vm.prank(owner1);
+         vm.expectRevert(
+            abi.encodeWithSelector(MultisigWallet.InvalidTransactionNonce.selector, nonExistentnonce)
+        );
+        wallet.executeTransaction(nonExistentnonce);
+    }
+
+    function test_executeTransaction_RevertsIfNotEnoughApprovals() public {
+        uint256 valueToSend = 1 ether;
+        // 1. Propose
+        vm.startPrank(owner1);
+        uint256 nonce = wallet.proposeTransaction(recipient, valueToSend);
+        wallet.approveTransaction(nonce);
+        vm.stopPrank();
+
+        // 2. Try to execute (owner2)
+        vm.prank(owner2);
+        vm.expectRevert(
+             abi.encodeWithSelector(
+                MultisigWallet.NotEnoughApprovals.selector,
+                nonce,
+                1, // current approvals
+                TwoOfThree // required approvals
+            )
+        );
+        wallet.executeTransaction(nonce);
+    }
+
+    function test_executeTransaction_RevertsIfAlreadyExecuted() public {
+        uint256 valueToSend = 1 ether;
+        // 1. Propose (owner1)
+        vm.startPrank(owner1);
+        uint256 nonce = wallet.proposeTransaction(recipient, valueToSend);
+        wallet.approveTransaction(nonce);
+        vm.stopPrank();
+
+        // 2. Approve (owner2)
+        vm.prank(owner2);
+        wallet.approveTransaction(nonce);
+        
+        // 3. Execute (owner1)
+        vm.prank(owner1);
+        wallet.executeTransaction(nonce);
+
+        // 4. Try to execute again (owner2)
+        vm.prank(owner2);
+        vm.expectRevert(
+            abi.encodeWithSelector(MultisigWallet.TransactionAlreadyExecuted.selector, nonce)
+        );
+        wallet.executeTransaction(nonce);
+    }
+
+    function test_executeTransaction_RevertsIfTransferFails() public {
+        // Use a mock recipient contract that rejects ETH
+        RejectEth recipientReject = new RejectEth();
+        uint256 valueToSend = 1 ether;
+
+        // Fund the multisig enough
+        vm.deal(address(wallet), valueToSend + 1); // Ensure enough balance
+
+        // 1. Propose (owner1)
+        vm.startPrank(owner1);
+        uint256 nonce = wallet.proposeTransaction(address(recipientReject), valueToSend);
+        wallet.approveTransaction(nonce);
+        vm.stopPrank();
+        
+        // 2. Approve (owner2)
+        vm.prank(owner2);
+        wallet.approveTransaction(nonce);
+
+        // 3. Execute (owner1) - Expect revert due to transfer failure
+        vm.prank(owner1);
+        vm.expectRevert(MultisigWallet.TransferFailed.selector);
+        wallet.executeTransaction(nonce);
+
+        // Verify transaction is NOT marked as executed after failed transfer
+         (, , , bool executed) = wallet.transactions(nonce); // Use correct getter and unpack 4th element
+         assertFalse(executed, "Transaction should not be marked executed after failed transfer");
+    }
+
+     function test_executeTransaction_RevertsIfInsufficientContractBalance() public {
+        // get the wallet balance
+        uint256 walletBalance = address(wallet).balance;
+
+         // More than the contract holds
+        uint256 valueToSend = walletBalance + 1 ether;
+        uint256 initialContractBalance = address(wallet).balance;
+
+        // 1. Propose (owner1)
+        vm.startPrank(owner1);
+        uint256 nonce = wallet.proposeTransaction(recipient, valueToSend);
+        wallet.approveTransaction(nonce);
+        vm.stopPrank();
+
+        // 2. Approve (owner2)
+        vm.prank(owner2);
+        wallet.approveTransaction(nonce);
+
+        // 3. Execute (owner1) - Expect revert due to transfer failure (insufficient funds)
+        vm.prank(owner1);
+        vm.expectRevert(MultisigWallet.TransferFailed.selector);
+        wallet.executeTransaction(nonce);
+
+         // Verify transaction is NOT marked as executed
+         (, , , bool executed) = wallet.transactions(nonce); // Use correct getter and unpack 4th element
+         assertFalse(executed, "Transaction should not be marked executed after failed transfer");
+         // Verify balance didn't change
+         assertEq(address(wallet).balance, initialContractBalance, "Contract balance should not change on failed transfer");
+    }
+}
+
+// Helper contract to test transfer failures
+contract RejectEth {
+    receive() external payable {
+        revert("Sorry can't allow deposits");
     }
 }
