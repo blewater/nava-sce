@@ -38,7 +38,9 @@ contract MultisigWallet is ReentrancyGuard {
      */
     event OwnerAdded(address indexed owner);
     event Deposit(address indexed sender, uint256 amount);
-    event proposedTransaction(uint256 indexed txId, address indexed proposer, address indexed to, uint256 value);
+    event ProposedTransaction(uint256 indexed nonce, address indexed proposer, address indexed to, uint256 value);
+    event ApprovedTransaction(uint256 indexed nonce, address indexed approver);
+    event AlreadyApprovedTransaction(uint256 nonce, address approver);
 
     /*
      * Types
@@ -49,6 +51,7 @@ contract MultisigWallet is ReentrancyGuard {
         address to; // Recipient address
         uint256 value; // Amount of ETH to send
         uint256 approvalCount; // Received approvals
+        bool executed; // Whether the transaction has been executed
     }
 
     /*
@@ -148,11 +151,52 @@ contract MultisigWallet is ReentrancyGuard {
         transactions[nonce] = Transaction({
             to: to,
             value: value,
-            approvalCount: 0
+            approvalCount: 0,
         });
         transactionNonce++;
 
-        emit proposedTransaction(nonce, msg.sender, to, value);
+        emit ProposedTransaction(nonce, msg.sender, to, value);
         return nonce;
+    }
+
+    /**
+     * Approves a pending transaction.
+     * Only callable by an owner. Transaction must exist and not be executed.
+     * Owner cannot approve the same transaction twice.
+     * @param nonce The ID of the transaction to approve.
+     */
+    function approveTransaction(uint256 nonce) external onlyOwner {
+        if (nonce >= transactionNonce) {
+            revert InvalidTransactionNonce(nonce);
+        }
+
+        // Check if the owner has already approved this transaction
+        if (_trxApprovals[nonce][msg.sender]) {
+            emit AlreadyApprovedTransaction(nonce, msg.sender);
+            return;
+        }
+
+        Transaction storage transaction = transactions[nonce];
+
+        // Check if transaction is already executed
+        if (transaction.executed) {
+            revert TransactionAlreadyExecuted(nonce);
+        }
+
+        // Mark approval
+        _trxApprovals[nonce][msg.sender] = true;
+        transaction.approvalCount++;
+
+        emit ApprovedTransaction(nonce, msg.sender);
+    }
+
+    /**
+     * Checks if a specific owner has approved a transaction.
+     * @param nonce The ID of the transaction.
+     * @param owner The address of the owner to check.
+     * @return True if the owner has approved, false otherwise.
+     */
+    function hasApproved(uint256 nonce, address owner) external view returns (bool) {
+        return _trxApprovals[nonce][owner];
     }
 }

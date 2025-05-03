@@ -109,23 +109,24 @@ contract MultisigWalletTest is Test {
         uint256 valueToSend = 1 ether;
         uint256 expectedNonce = 0;
 
-        // Propose as owner1
-        vm.startPrank(owner1);
 
+        // Propose as owner1
         // Expect TransactionProposed event
         vm.expectEmit(true, true, true, true);
-        emit MultisigWallet.proposedTransaction(expectedNonce, owner1, recipient, valueToSend);
+        emit MultisigWallet.ProposedTransaction(expectedNonce, owner1, recipient, valueToSend);
 
+        vm.prank(owner1);
         uint256 nonce = wallet.proposeTransaction(recipient, valueToSend);
 
         assertEq(nonce, expectedNonce, "Incorrect nonce returned");
         assertEq(wallet.transactionNonce(), expectedNonce + 1, "Transaction nonce not incremented");
 
         // Verify transaction details
-        (address to, uint256 value, uint256 approvalCount) = wallet.transactions(nonce);
+        (address to, uint256 value, uint256 approvalCount, bool executed) = wallet.transactions(nonce);
         assertEq(to, recipient, "Recipient mismatch");
         assertEq(value, valueToSend, "Value mismatch");
         assertEq(approvalCount, 0, "Approval count should be 0");
+        assertEq(executed, false, "Transaction should not be executed");
     }
 
     function test_proposeTransaction_RevertsIfSenderIsNotOwner() public {
@@ -133,17 +134,77 @@ contract MultisigWalletTest is Test {
 
         // Try to propose as non-owner
         address nonOwner = address(0xbaddad);
-        vm.startPrank(nonOwner);
 
         vm.expectRevert(abi.encodeWithSelector(MultisigWallet.NotOwner.selector, nonOwner));
+        vm.prank(nonOwner);
         wallet.proposeTransaction(recipient, valueToSend);
     }
 
     function test_proposeTransaction_RevertsIfRecipientIsZeroAddress() public {
         uint256 valueToSend = 1 ether;
-        vm.startPrank(owner1);
 
         vm.expectRevert(MultisigWallet.ZeroAddressRecipient.selector);
+        vm.prank(owner1);
         wallet.proposeTransaction(address(0), valueToSend);
+    }
+
+    // =============================================================
+    // Transaction Approval Tests
+    // =============================================================
+    function test_approveTransaction_Success() public {
+        uint256 valueToSend = 1 ether;
+        vm.prank(owner1);
+        uint256 nonce = wallet.proposeTransaction(recipient, valueToSend); // owner1 auto-approves
+
+        // Approve as owner2
+        // Expect TransactionApproved event
+        vm.expectEmit(true, true, false, true); // nonce, approver
+        emit MultisigWallet.ApprovedTransaction(nonce, owner2);
+
+        vm.prank(owner2);
+        wallet.approveTransaction(nonce);
+
+        // Verify approval count and status
+        (, , uint256 approvalCount, ) = wallet.transactions(nonce); // Get the 3rd element
+        assertEq(approvalCount, 1, "Approval count should be 1 after one approval");
+        // Use the new hasApproved getter
+        assertTrue(wallet.hasApproved(nonce, owner2), "Owner2 approval missing");
+    }
+
+     function test_approveTransaction_RevertsIfSenderIsNotOwner() public {
+        uint256 valueToSend = 1 ether;
+        vm.prank(owner1);
+        uint256 nonce = wallet.proposeTransaction(recipient, valueToSend);
+
+        // Try to approve as non-owner
+        address nonOwner = address(0xbaddad);
+        vm.expectRevert(abi.encodeWithSelector(MultisigWallet.NotOwner.selector, nonOwner));
+        vm.prank(nonOwner);
+        wallet.approveTransaction(nonce);
+    }
+
+    function test_approveTransaction_RevertsIfTransactionDoesNotExist() public {
+        uint256 nonExistentnonce = 99;
+        vm.prank(owner1);
+        vm.expectRevert(
+            abi.encodeWithSelector(MultisigWallet.InvalidTransactionNonce.selector, nonExistentnonce)
+        );
+        wallet.approveTransaction(nonExistentnonce);
+    }
+
+     function test_approveTransaction_RevertsIfAlreadyApproved() public {
+        uint256 valueToSend = 1 ether;
+        vm.prank(owner1);
+        uint256 nonce = wallet.proposeTransaction(recipient, valueToSend);
+        
+        // owner1 approves the transaction first
+        vm.startPrank(owner1);
+        wallet.approveTransaction(nonce);
+        assertTrue(wallet.hasApproved(nonce, owner1), "Owner1 should have approved");
+
+        // owner1 tries to approve again
+        vm.expectEmit(true, true, true, true);
+        emit MultisigWallet.AlreadyApprovedTransaction(nonce, owner1);
+        wallet.approveTransaction(nonce);
     }
 }
