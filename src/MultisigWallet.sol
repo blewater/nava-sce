@@ -30,13 +30,26 @@ contract MultisigWallet is ReentrancyGuard {
     error NoOwners();
     error ZeroAddressOwner();
     error OwnerAlreadyExists(address owner);
+    error ZeroAddressRecipient();
+    error TransactionAlreadyExecuted(uint256 txId);
 
     /*
      * Events
      */
     event OwnerAdded(address indexed owner);
     event Deposit(address indexed sender, uint256 amount);
+    event proposedTransaction(uint256 indexed txId, address indexed proposer, address indexed to, uint256 value);
 
+    /*
+     * Types
+     */
+
+    // Transaction: An ETH value transfer transaction to be approved by the multisig wallet.
+    struct Transaction {
+        address to; // Recipient address
+        uint256 value; // Amount of ETH to send
+        uint256 approvalCount; // Received approvals
+    }
 
     /*
      * Storage
@@ -49,6 +62,9 @@ contract MultisigWallet is ReentrancyGuard {
     uint256 private _ownerCount; // n
     uint256 public requiredApprovals; // of m
     address[] private _owners;
+    uint256 public transactionNonce;
+    // track transactions: txNonce => Transaction
+    mapping(uint256 => Transaction) public transactions;
 
     /*
      * Modifiers
@@ -60,6 +76,11 @@ contract MultisigWallet is ReentrancyGuard {
         _;
     }
 
+    /**
+     * Initializes the multisig wallet with a list of owners and a required approval threshold.
+     * @param owners Array of owner addresses.
+     * @param newRequiredApprovals Number of approvals required to execute a transaction.
+     */
     constructor(address[] memory owners, uint256 newRequiredApprovals) {
         uint256 ownerCount = owners.length;
 
@@ -104,5 +125,34 @@ contract MultisigWallet is ReentrancyGuard {
 
     receive() external payable {
         emit Deposit(msg.sender, msg.value);
+    }
+
+    /**
+     * Proposes a new transaction to send ETH.
+     * Only callable by an owner.
+     * @param to The recipient address.
+     * @param value The amount of ETH to send (in wei).
+     * @return nonce The ID of the newly proposed transaction.
+     */
+    function proposeTransaction(address to, uint256 value)
+        external
+        onlyOwner
+        returns (uint256 nonce)
+    {
+        // Validate recipient address
+        if (to == address(0)) {
+            revert ZeroAddressRecipient();
+        }
+
+        nonce = transactionNonce;
+        transactions[nonce] = Transaction({
+            to: to,
+            value: value,
+            approvalCount: 0
+        });
+        transactionNonce++;
+
+        emit proposedTransaction(nonce, msg.sender, to, value);
+        return nonce;
     }
 }

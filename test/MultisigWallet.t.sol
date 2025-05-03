@@ -13,15 +13,13 @@ contract MultisigWalletTest is Test {
     address owner2 = address(0x2);
     address owner3 = address(0x3);
     address[] owners = [owner1, owner2, owner3];
+    address recipient = address(0xcafe);
 
     function setUp() public {
         wallet = new MultisigWallet(owners, TwoOfThree);
         vm.deal(address(wallet), 10 ether);
     }
 
-    function testMultisigWallet() public {
-    }
-    
     // =============================================================
     // Constructor & Deployment Tests
     // =============================================================
@@ -102,4 +100,50 @@ contract MultisigWalletTest is Test {
         // Check final balance
         assertEq(address(wallet).balance, initialBalance + depositAmount, "Balance mismatch after deposit");
     }    
+
+
+    // =============================================================
+    // Transaction Proposal Tests
+    // =============================================================
+    function test_proposeTransaction_Success() public {
+        uint256 valueToSend = 1 ether;
+        uint256 expectedNonce = 0;
+
+        // Propose as owner1
+        vm.startPrank(owner1);
+
+        // Expect TransactionProposed event
+        vm.expectEmit(true, true, true, true);
+        emit MultisigWallet.proposedTransaction(expectedNonce, owner1, recipient, valueToSend);
+
+        uint256 nonce = wallet.proposeTransaction(recipient, valueToSend);
+
+        assertEq(nonce, expectedNonce, "Incorrect nonce returned");
+        assertEq(wallet.transactionNonce(), expectedNonce + 1, "Transaction nonce not incremented");
+
+        // Verify transaction details
+        (address to, uint256 value, uint256 approvalCount) = wallet.transactions(nonce);
+        assertEq(to, recipient, "Recipient mismatch");
+        assertEq(value, valueToSend, "Value mismatch");
+        assertEq(approvalCount, 0, "Approval count should be 0");
+    }
+
+    function test_proposeTransaction_RevertsIfSenderIsNotOwner() public {
+        uint256 valueToSend = 1 ether;
+
+        // Try to propose as non-owner
+        address nonOwner = address(0xbaddad);
+        vm.startPrank(nonOwner);
+
+        vm.expectRevert(abi.encodeWithSelector(MultisigWallet.NotOwner.selector, nonOwner));
+        wallet.proposeTransaction(recipient, valueToSend);
+    }
+
+    function test_proposeTransaction_RevertsIfRecipientIsZeroAddress() public {
+        uint256 valueToSend = 1 ether;
+        vm.startPrank(owner1);
+
+        vm.expectRevert(MultisigWallet.ZeroAddressRecipient.selector);
+        wallet.proposeTransaction(address(0), valueToSend);
+    }
 }
