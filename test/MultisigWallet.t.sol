@@ -232,9 +232,9 @@ contract MultisigWalletTest is Test {
         wallet.approveTransaction(nonce);
 
         // 3. Execute (owner3)
-        // Expect TransactionExecuted event
+        // Expect ExecutedTransaction event
         vm.expectEmit(true, true, false, true); // nonce, executor
-        emit MultisigWallet.TransactionExecuted(nonce, owner3);
+        emit MultisigWallet.ExecutedTransaction(nonce, owner3);
 
         vm.prank(owner3);
         wallet.executeTransaction(nonce);

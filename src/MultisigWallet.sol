@@ -42,7 +42,7 @@ contract MultisigWallet is ReentrancyGuard {
     event ProposedTransaction(uint256 indexed nonce, address indexed proposer, address indexed to, uint256 value);
     event ApprovedTransaction(uint256 indexed nonce, address indexed approver);
     event AlreadyApprovedTransaction(uint256 nonce, address approver);
-    event TransactionExecuted(uint256 indexed nonce, address indexed executor);
+    event ExecutedTransaction(uint256 indexed nonce, address indexed executor);
 
     /*
      * Types
@@ -236,6 +236,6 @@ contract MultisigWallet is ReentrancyGuard {
             revert TransferFailed();
         }
 
-        emit TransactionExecuted(nonce, msg.sender);
+        emit ExecutedTransaction(nonce, msg.sender);
     }
 }
