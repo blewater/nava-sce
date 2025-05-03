@@ -25,13 +25,15 @@ contract MultisigWallet is ReentrancyGuard {
      * Custom errors
      */
     error NotOwner(address sender);
-    error NotEnoughApprovals(uint256 requiredApprovals);
+    error NotEnoughApprovals(uint256 nonce, uint256 approvals, uint256 requiredApprovals);
     error InvalidRequiredApprovals(uint256 requiredApprovals, uint256 ownerCount);
     error NoOwners();
     error ZeroAddressOwner();
     error OwnerAlreadyExists(address owner);
     error ZeroAddressRecipient();
-    error TransactionAlreadyExecuted(uint256 txId);
+    error TransactionAlreadyExecuted(uint256 nonce);
+    error InvalidTransactionNonce(uint256 nonce);
+    error TransferFailed();
 
     /*
      * Events
@@ -41,6 +43,7 @@ contract MultisigWallet is ReentrancyGuard {
     event ProposedTransaction(uint256 indexed nonce, address indexed proposer, address indexed to, uint256 value);
     event ApprovedTransaction(uint256 indexed nonce, address indexed approver);
     event AlreadyApprovedTransaction(uint256 nonce, address approver);
+    event TransactionExecuted(uint256 indexed nonce, address indexed executor);
 
     /*
      * Types
@@ -152,6 +155,7 @@ contract MultisigWallet is ReentrancyGuard {
             to: to,
             value: value,
             approvalCount: 0,
+            executed: false
         });
         transactionNonce++;
 
@@ -198,5 +202,54 @@ contract MultisigWallet is ReentrancyGuard {
      */
     function hasApproved(uint256 nonce, address owner) external view returns (bool) {
         return _trxApprovals[nonce][owner];
+    }
+
+    /**
+     * Executes a transaction if it has enough approvals.
+     * Only callable by an owner. 
+     * Transaction must exist, 
+     * Not be already executed,
+     * Have sufficient approvals. 
+     * Contract must have enough ETH balance.
+     * @param nonce The ID of the transaction to execute.
+     */
+    function executeTransaction(uint256 nonce)
+        external
+        onlyOwner
+        nonReentrant // Prevent reentrancy attacks
+    {
+        // Validate nonce
+        if (nonce >= transactionNonce) {
+            revert InvalidTransactionNonce(nonce);
+        }
+
+        Transaction storage transaction = transactions[nonce];
+
+        // Check if transaction is already executed
+        if (transaction.executed) {
+            revert TransactionAlreadyExecuted(nonce);
+        }
+
+        // Check if the transaction has enough approvals
+        if (transaction.approvalCount < requiredApprovals) {
+            revert NotEnoughApprovals(
+                nonce,
+                transaction.approvalCount,
+                requiredApprovals
+            );
+        }
+
+        // Mark as executed *before* sending ETH (Checks-Effects-Interactions pattern)
+        transaction.executed = true;
+
+        // Execute the transaction (send ETH)
+        (bool success, ) = transaction.to.call{value: transaction.value}("");
+        if (!success) {
+            // Revert execution status if transfer fails
+            transaction.executed = false;
+            revert TransferFailed();
+        }
+
+        emit TransactionExecuted(nonce, msg.sender);
     }
 }

@@ -207,4 +207,28 @@ contract MultisigWalletTest is Test {
         emit MultisigWallet.AlreadyApprovedTransaction(nonce, owner1);
         wallet.approveTransaction(nonce);
     }
+
+    function test_approveTransaction_RevertsIfTransactionAlreadyExecuted() public {
+        uint256 valueToSend = 1 ether;
+        // 1. Propose (owner1 auto-approves)
+        vm.startPrank(owner1);
+        uint256 nonce = wallet.proposeTransaction(recipient, valueToSend);
+        wallet.approveTransaction(nonce);
+        vm.stopPrank();
+
+        // 2. Approve (owner2) - Reaches threshold
+        vm.prank(owner2);
+        wallet.approveTransaction(nonce);
+        
+        // 3. Execute (owner1)
+        vm.prank(owner1);
+        wallet.executeTransaction(nonce);
+
+        // 4. Try to approve again (owner3) after execution
+        vm.expectRevert(
+            abi.encodeWithSelector(MultisigWallet.TransactionAlreadyExecuted.selector, nonce)
+        );
+        vm.prank(owner3);
+        wallet.approveTransaction(nonce);
+    }
 }
