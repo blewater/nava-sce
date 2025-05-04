@@ -139,7 +139,7 @@ contract MultisigWalletTest is Test {
     function test_approveTransaction_Success() public {
         uint256 valueToSend = 1 ether;
         vm.prank(owner1);
-        uint256 nonce = wallet.proposeTransaction(recipient, valueToSend); // owner1 auto-approves
+        uint256 nonce = wallet.proposeTransaction(recipient, valueToSend);
 
         // Approve as owner2
         // Expect TransactionApproved event
