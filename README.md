@@ -54,13 +54,10 @@ Ensure you have Soldeer installed. Follow the instructions on the official Found
     ```
 2.  **Install dependencies**
     
-    If `lib/` is empty or missing, initialize/update them:
-    
     ```bash
-    # If you cloned the sample repo, dependencies might already be configured.
-    # you shouldn't have to use soldeer as a repo consumer
-    forge soldeer install @forge-std
-    forge soldeer install @openzeppelin-contracts~5.3.0
+    # Install Foundry: https://getfoundry.sh/
+    curl -L https://foundry.paradigm.xyz | bash
+    forge soldeer install
     ```
 
 ### Running Tests
