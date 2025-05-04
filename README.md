@@ -53,6 +53,8 @@ Ensure you have Soldeer installed. Follow the instructions on the official Found
     cd nava-sce
     ```
 2.  **Install dependencies**
+
+You may also note the Github workflow file `.github/workflows/test.yml` for a bootstraping example.
     
     ```bash
     # Install Foundry: https://getfoundry.sh/
