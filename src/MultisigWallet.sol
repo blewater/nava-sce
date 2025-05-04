@@ -16,8 +16,8 @@ import {ReentrancyGuard} from "@openzeppelin-contracts-5.3.0/utils/ReentrancyGua
 /**
  * @title MultisigWallet: A simple n-of-m multisig Ether wallet.
  * Allows a set of owners to approve transactions and execute them once the required approval threshold is met.
- * `n` - number of owners
- * `m` - number of required approvals
+ * `n` - number of required approvals
+ * `m` - number of owners
  */
 contract MultisigWallet is ReentrancyGuard {
     /*

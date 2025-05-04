@@ -1,31 +1,86 @@
-## Built with Foundry
+# Simple n-of-m Multisig Wallet (Solidity/Foundry)
 
-## Documentation
+A simple implementation of an n-of-m multisig wallet supporting Ether transfers only.
 
-https://book.getfoundry.sh/
+## Features
 
-## Usage
+### n-of-m Multisig 
 
-### Build
+At construction, statically initialize the contract with a list of owners and a required approval threshold.
 
-```shell
-$ forge build
+### ETH Transfers 
+
+Allows owners to propose, approve, and execute transactions to send ETH to a specified address.
+
+### Event Emissions 
+
+Emits events for important actions like deposits, transaction proposals, approvals, and executions, facilitating off-chain monitoring.
+
+### Security Checks 
+
+Includes checks for ownership, transaction validity, reentrancy protection.
+
+## Project Structure
+
+```
+    ├── src/                  # Main contract source files
+    │   └── MultisigWallet.sol
+    ├── test/                 # Foundry test files
+    │   └── MultisigWallet.t.sol
+    ├── lib/                  # Dependencies (e.g. forge-std)
+    ├── foundry.toml          # Foundry configuration file
+    ├── soldeer.lock          # Soldeer package manager lock file
+    ├── .github/              # GitHub workflow configuration files
 ```
 
-### Test
+## Setup and Testing
 
-```shell
-$ forge test
+### Prerequisites
+
+### [Foundry](https://getfoundry.sh/)
+Ensure you have Foundry installed. Follow the instructions on the official Foundry website.
+
+### [Soldeer](https://book.getfoundry.sh/projects/soldeer)
+Ensure you have Soldeer installed. Follow the instructions on the official Foundry book.
+
+## Built with Foundry v1.1.0 and Soldeer package manager.
+
+### Getting Started
+
+1.  **Clone the repository**
+    ```bash
+    git clone https://github.com/blewater/nava-sce.git
+    cd nava-sce
+    ```
+2.  **Install dependencies**
+    
+    If `lib/` is empty or missing, initialize/update them:
+    
+    ```bash
+    # If you cloned the sample repo, dependencies might already be configured.
+    # you shouldn't have to use soldeer as a repo consumer
+    forge soldeer install @forge-std
+    forge soldeer install @openzeppelin-contracts~5.3.0
+    ```
+
+### Running Tests
+
+Execute the test suite using Foundry:
+
+```bash
+forge test
+
+# You can increase verbosity to see emitted events and logs:forge test -vvv
 ```
 
-### Format
+## Implementation Choices and Limitations
+### ETH Only
+This implementation only supports proposing and executing transactions involving the native currency (ETH). It does not handle ERC20 tokens or arbitrary contract calls, i.e. ERC4337 or Gnosis Safe allow.
 
-```shell
-$ forge fmt
-```
+### Fixed Owners/Threshold
+The set of owners (m) and the required approval threshold (n) are set in the constructor and cannot be changed after deployment. Adding owner/threshold management would significantly increase complexity.
 
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
+### No Transaction Data
+Only `to` recipient address and `value` are included in the transactions. It doesn't support sending transaction data (calldata) for interacting with other contracts, i.e., ERC4337 or Gnosis Safe allow.
+### Off-Chain Signature Aggregation
+This is an on-chain multisig. It does not implement off-chain signature aggregation schemes.
